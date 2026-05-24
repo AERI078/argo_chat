@@ -15,10 +15,10 @@ class ExecutorAgent:
         self.llm = llm
         self.rag = rag
 
-    def execute(self, step: TaskStep, context: str) -> StepResult:
+    def execute(self, step: TaskStep, context: str, query: str = "") -> StepResult:
         # final_answer step is handled differently — needs LLM to synthesise
         if step.tool == "final_answer":
-            return self._synthesise(step, context)
+            return self._synthesise(step, context, query)
 
         # for all other steps, ask LLM to produce the Action call
         messages = executor_prompt(step.model_dump(), context)
@@ -38,9 +38,9 @@ class ExecutorAgent:
             error=result.error
         )
 
-    def _synthesise(self, step: TaskStep, context: str) -> StepResult:
+    def _synthesise(self, step: TaskStep, context: str, query: str) -> StepResult:
         """For the final_answer step, synthesise a natural language response from all context."""
-        messages = synthesizer_prompt(step.params.get("query", ""), context)
+        messages = synthesizer_prompt(query, context)
         answer = self.llm.call(messages, temperature=0.3)
         return StepResult(
             step_id=step.step_id,

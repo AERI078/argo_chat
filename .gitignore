@@ -1,4 +1,3 @@
-config.py
 /argoenv
 
 notes.txt
@@ -8,3 +7,4 @@ notes.txt
 __pycache__/
 *.pyc
 .DS_Store
+/all

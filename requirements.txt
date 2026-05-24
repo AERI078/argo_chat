@@ -23,8 +23,7 @@ psycopg2-binary
 streamlit
 plotly
 
-# Observability & evaluation
-langsmith
+# Evaluation
 ragas
 
 # Utilities

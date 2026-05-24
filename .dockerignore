@@ -1,0 +1,16 @@
+argoenv
+__pycache__
+*.pyc
+.git
+.gitignore
+.env
+
+*.faiss
+*_docs.json
+
+all
+notes.txt
+
+.cache
+models
+data

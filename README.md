@@ -1,4 +1,4 @@
-# 🌊 FloatChat — Talk to the Ocean
+# 🌊 ArgoChat — Talk to the Ocean
 
 > *Ask questions about the world's oceans in plain English. Get answers backed by real scientific data.*
 
@@ -8,11 +8,11 @@
 
 ---
 
-## What is FloatChat?
+## What is ArgoChat?
 
 The world's oceans are monitored by **4,000+ autonomous Argo floats** drifting through every major ocean basin, measuring temperature, salinity, and pressure at hundreds of depths. This data is freely available — but locked behind complex file formats, specialist tools, and domain expertise that most people don't have.
 
-**FloatChat breaks that barrier.**
+**ArgoChat breaks that barrier.**
 
 Type a question in plain English. Get a real answer, backed by real Argo float data from the Indian Ocean, with charts you can actually read.
 
@@ -29,7 +29,7 @@ No data science background needed. No SQL. No NetCDF. Just questions.
 
 ## Who is this for?
 
-| User | How they use FloatChat |
+| User | How they use ArgoChat |
 |------|------------------------|
 | **Oceanographic researchers** | Fast natural language querying instead of writing fetch scripts |
 | **Climate policy analysts** | Accessible ocean summaries without needing domain tools |
@@ -41,7 +41,7 @@ No data science background needed. No SQL. No NetCDF. Just questions.
 
 ## This is a live, deployed product
 
-FloatChat is not a prototype or a notebook demo. It is a fully deployed, end-to-end AI system:
+ArgoChat is not a prototype or a notebook demo. It is a fully deployed, end-to-end AI system:
 
 - **Backend** — FastAPI multi-agent system running on Render (Docker container)
 - **Frontend** — Streamlit chat interface on Streamlit Cloud
@@ -129,7 +129,7 @@ FloatChat is not a prototype or a notebook demo. It is a fully deployed, end-to-
 ## Directory Structure
 
 ```
-floatchat/
+ArgoChat/
 │
 ├── config.py                     ← all constants and env vars
 ├── pipeline_logger.py            ← structured pipeline event logger
@@ -188,8 +188,8 @@ floatchat/
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/yourusername/floatchat
-cd floatchat
+git clone https://github.com/yourusername/ArgoChat
+cd ArgoChat
 python -m venv argoenv
 source argoenv/bin/activate  # Windows: argoenv\Scripts\activate
 pip install -r requirements.txt
@@ -215,7 +215,7 @@ BACKEND_URL=http://localhost:8000
 uvicorn api.main:app --reload
 ```
 
-On first run, FloatChat will:
+On first run, ArgoChat will:
 1. Download the embedding model (~90MB, cached after)
 2. Fetch a sample of Arabian Sea Argo profiles via argopy (~30-60s)
 3. Build and save the FAISS index to disk
@@ -255,7 +255,7 @@ python test_pipeline.py --verbose # full tracebacks on failures
    - `GROQ_API_KEY`
    - `DATABASE_URL`
 5. Click **Deploy**
-6. Copy your service URL (e.g. `https://floatchat-api.onrender.com`)
+6. Copy your service URL (e.g. `https://ArgoChat-api.onrender.com`)
 
 > **Note:** Free tier services sleep after 15 minutes of inactivity. First request after sleep takes ~30s to wake up.
 
@@ -266,7 +266,7 @@ python test_pipeline.py --verbose # full tracebacks on failures
 3. Set **Main file path** to `frontend/app.py`
 4. Under **Secrets**, add:
    ```
-   BACKEND_URL = "https://floatchat-api.onrender.com"
+   BACKEND_URL = "https://ArgoChat-api.onrender.com"
    ```
 5. Click **Deploy**
 
@@ -343,7 +343,7 @@ python test_pipeline.py --verbose # full tracebacks on failures
 - **Argo Program** — the international array of profiling floats that makes this data possible ([argo.ucsd.edu](https://argo.ucsd.edu))
 - **INCOIS** — Indian National Centre for Ocean Information Services, the Indian Argo data centre
 - **argopy** — the open-source Python library for Argo data access ([argopy.readthedocs.io](https://argopy.readthedocs.io))
-- **Problem Statement 25040** — FloatChat concept from Smart India Hackathon 2025, Ministry of Earth Sciences
+- **Problem Statement 25040** — ArgoChat concept from Smart India Hackathon 2025, Ministry of Earth Sciences
 
 ---
 

@@ -1,0 +1,32 @@
+# API & server
+fastapi
+uvicorn[standard]
+pydantic
+
+# LLM
+groq
+
+# Data
+argopy
+pandas
+numpy
+xarray
+
+# RAG
+sentence-transformers
+faiss-cpu
+
+# Database
+psycopg2-binary
+
+# Frontend
+streamlit
+plotly
+
+# Observability & evaluation
+langsmith
+ragas
+
+# Utilities
+python-dotenv
+httpx

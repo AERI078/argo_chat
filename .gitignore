@@ -1,0 +1,10 @@
+config.py
+/argoenv
+
+notes.txt
+.env
+*.faiss
+*_docs.json
+__pycache__/
+*.pyc
+.DS_Store

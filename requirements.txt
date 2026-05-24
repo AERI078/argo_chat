@@ -2,30 +2,30 @@
 fastapi
 uvicorn[standard]
 pydantic
-
+ 
 # LLM
 groq
-
+ 
 # Data
 argopy
 pandas
 numpy
 xarray
-
-# RAG
-sentence-transformers
+ 
+# RAG — using fastembed instead of sentence-transformers
+# fastembed has no torch dependency — drops image from ~3GB to ~400MB
+fastembed
+ 
+# Vector store
 faiss-cpu
-
+ 
 # Database
 psycopg2-binary
-
+ 
 # Frontend
 streamlit
 plotly
-
-# Evaluation
-ragas
-
+ 
 # Utilities
 python-dotenv
 httpx

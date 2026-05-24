@@ -16,6 +16,7 @@ class ChatResponse(BaseModel):
     chart_spec: Optional[dict] = None
     trace: Optional[dict] = None
     success: bool
+    confidence: Optional[float] = None
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -32,5 +33,6 @@ async def chat(request: Request, body: ChatRequest):
         answer=response.answer,
         chart_spec=response.chart_spec,
         trace=trace,
-        success=response.success
+        success=response.success,
+        confidence=response.confidence
     )

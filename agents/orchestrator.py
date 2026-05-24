@@ -33,6 +33,7 @@ class Orchestrator:
         all_results: list[StepResult] = []
         context_parts: list[str] = []
         chart_spec = None
+        validation_scores: list[float] = []
 
         for step in plan.steps:
             if any(dep not in completed_ids for dep in step.depends_on):
@@ -56,6 +57,7 @@ class Orchestrator:
 
             log.start("validator", step_id=step.step_id)
             validation = self.validator.validate(step, result)
+            validation_scores.append(validation.score)
 
             if validation.passed:
                 log.success("validator", step_id=step.step_id, data={"score": validation.score})
@@ -70,11 +72,13 @@ class Orchestrator:
                                                  "failures": plan_eval.failure_counts})
 
             if plan_eval.status == PlanStatus.unrecoverable:
+                avg_confidence = sum(validation_scores) / len(validation_scores) if validation_scores else 0.0
                 log.finish(success=False)
                 return OrchestratorResponse(
                     query=query,
                     answer="I encountered too many errors. Please try a more specific question.",
-                    chart_spec=chart_spec, plan=plan, step_results=all_results, success=False
+                    chart_spec=chart_spec, plan=plan, step_results=all_results, success=False,
+                    confidence=avg_confidence
                 ), log.trace()
 
             if plan_eval.status == PlanStatus.replan:
@@ -84,6 +88,7 @@ class Orchestrator:
                 completed_ids = []
                 context_parts = []
                 all_results = []
+                validation_scores = []
                 continue
 
             if result.success and result.data:
@@ -94,11 +99,13 @@ class Orchestrator:
 
             if step.tool == "final_answer" and result.success:
                 answer = result.data.get("text", "") if result.data else ""
+                avg_confidence = sum(validation_scores) / len(validation_scores) if validation_scores else 0.5
                 log.finish(success=True, answer_length=len(answer))
                 return OrchestratorResponse(
                     query=query, answer=answer,
                     chart_spec=result.data.get("chart_spec") or chart_spec,
-                    plan=plan, step_results=all_results, success=True
+                    plan=plan, step_results=all_results, success=True,
+                    confidence=avg_confidence
                 ), log.trace()
 
             completed_ids.append(step.step_id)
@@ -107,7 +114,8 @@ class Orchestrator:
         return OrchestratorResponse(
             query=query,
             answer="I completed the analysis but couldn't synthesise a final answer. Please try rephrasing.",
-            chart_spec=chart_spec, plan=plan, step_results=all_results, success=False
+            chart_spec=chart_spec, plan=plan, step_results=all_results, success=False,
+            confidence=avg_confidence
         ), log.trace()
 
     def _summarise_result(self, tool: str, data: dict) -> str:

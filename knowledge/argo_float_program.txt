@@ -1,0 +1,52 @@
+Argo Float Program
+
+Argo is a global ocean observing program that uses autonomous profiling floats to measure the physical and biogeochemical state of the ocean. The program began in 1999 and is now one of the most important ocean observing systems for climate science.
+
+How Argo Floats Work
+A standard Argo float follows a repeating “park-and-profile” cycle:
+1. The float sinks to a parking depth, usually around 1000 meters.
+2. It drifts with ocean currents for about 10 days.
+3. It then dives deeper, often to 2000 meters.
+4. The float slowly rises back to the surface while measuring ocean properties.
+5. At the surface, it transmits data to satellites and then sinks again to repeat the cycle.
+
+What Argo Floats Measure
+Core Argo floats measure:
+- Temperature
+- Salinity
+- Pressure
+
+Biogeochemical (BGC) Argo floats additionally measure:
+- Dissolved oxygen
+- Chlorophyll
+- Nitrate
+- pH
+- Optical backscatter
+- Other indicators of biological productivity and carbon cycling
+
+Why the Data Matters
+Argo observations are critical for:
+- Monitoring ocean heat content
+- Tracking climate change
+- Improving weather and monsoon prediction
+- Understanding ocean circulation
+- Studying marine ecosystems
+- Supporting ocean forecasting models
+
+Indian Ocean Coverage
+The Indian Ocean is an important region for Argo observations because it strongly influences the Asian monsoon and global climate. Participating countries maintain hundreds of floats across the basin. The network helps scientists observe temperature and salinity changes, mixed layers, thermoclines, and ocean circulation patterns.
+
+Role of INCOIS
+The Indian National Centre for Ocean Information Services (INCOIS) is India’s main institution for Argo operations in the Indian Ocean. INCOIS:
+- Deploys and monitors Argo floats
+- Receives satellite-transmitted float data
+- Performs quality control
+- Uploads data to international data centers
+- Produces oceanographic products for research and forecasting
+
+According to INCOIS, India committed to deploying around 150 Argo floats in the Indian Ocean as part of the broader international observing system.
+
+Grounded Sources
+- https://services.incois.gov.in/argo/argo_about.jsp
+- https://services.incois.gov.in/iogoos/indoos/argofloats.jsp
+- https://www.aoml.noaa.gov/argo/

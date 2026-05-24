@@ -125,6 +125,16 @@ def render_trace(trace: dict):
                 detail = f" — {event.get('reason', '')}"
             st.markdown(f"{icon} **{stage}**{detail}{elapsed}")
 
+def render_confidence(confidence: float):
+    """Display confidence score with color-coded badge."""
+    if confidence >= 0.8:
+        st.success(f"🎯 High confidence: {confidence:.0%}", icon="✅")
+    elif confidence >= 0.6:
+        st.info(f"📊 Medium confidence: {confidence:.0%}", icon="ℹ️")  
+    else:
+        st.warning(f"⚠️ Low confidence: {confidence:.0%}", icon="⚠️")
+        st.caption("The system had difficulty validating some steps. Results may be incomplete.")
+
 
 # ── sidebar ───────────────────────────────────────────────────────────────────
 
@@ -175,6 +185,8 @@ if "pending_query" not in st.session_state:
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
+        if msg.get("confidence") is not None:
+            render_confidence(msg["confidence"])
         if msg.get("chart_spec"):
             render_chart(msg["chart_spec"])
         if msg.get("trace"):
@@ -191,6 +203,8 @@ if st.session_state.pending_query:
         with st.spinner("Thinking..."):
             result = send_message(query)
         st.markdown(result.get("answer", ""))
+        if result.get("confidence") is not None:
+            render_confidence(result["confidence"])
         if result.get("chart_spec"):
             render_chart(result["chart_spec"])
         if result.get("trace"):
@@ -199,7 +213,8 @@ if st.session_state.pending_query:
         "role": "assistant",
         "content": result.get("answer", ""),
         "chart_spec": result.get("chart_spec"),
-        "trace": result.get("trace")
+        "trace": result.get("trace"),
+        "confidence": result.get("confidence")
     })
     st.rerun()
 
@@ -220,5 +235,6 @@ if query := st.chat_input("Ask about ocean data..."):
         "role": "assistant",
         "content": result.get("answer", ""),
         "chart_spec": result.get("chart_spec"),
-        "trace": result.get("trace")
+        "trace": result.get("trace"),
+        "confidence": result.get("confidence")
     })

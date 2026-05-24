@@ -1,0 +1,49 @@
+Thermocline and Depth Profiles
+
+A thermocline is a layer in the ocean where temperature changes rapidly with depth. It separates warmer surface water from colder deep water.
+
+Why Thermoclines Form
+Sunlight heats the ocean surface. Warm water is less dense and tends to remain above colder, denser water. Wind and waves mix the upper ocean, creating a surface mixed layer. Beneath this mixed layer, temperature can decrease sharply, forming a thermocline.
+
+Mixed Layer Depth
+The mixed layer is the upper portion of the ocean where temperature and salinity are relatively uniform because of mixing by wind, waves, and turbulence.
+
+The depth of the mixed layer changes seasonally:
+- In summer: strong heating creates shallow mixed layers
+- In winter: cooling and storms deepen the mixed layer
+
+How to Read a Depth-Temperature Profile
+A depth-temperature profile plots:
+- Depth on the vertical axis
+- Temperature on the horizontal axis
+
+Important patterns:
+- Nearly vertical sections indicate uniform temperature
+- Sharp bends or steep slopes indicate rapid temperature changes
+- A strong temperature gradient marks the thermocline
+
+What Sharp Gradients Mean
+Sharp gradients usually indicate strong stratification. Vertical mixing becomes weaker because warm, light water remains above colder, denser water.
+
+Seasonal vs Permanent Thermoclines
+Seasonal thermocline:
+- Forms during warm seasons
+- Usually shallow
+- Can disappear during winter mixing
+
+Permanent thermocline:
+- Exists year-round in tropical and subtropical oceans
+- Lies deeper below the surface mixed layer
+
+Indian Ocean Characteristics
+The Indian Ocean has strong seasonal variability because of the monsoon system. Thermocline depth changes significantly across the basin. In tropical regions, a relatively strong permanent thermocline exists, while monsoon winds and upwelling can locally weaken or deepen it.
+
+Thermocline structure in the Indian Ocean is important for:
+- Monsoon prediction
+- Ocean-atmosphere heat exchange
+- Climate variability
+- Marine ecosystems
+
+Grounded Sources
+- https://arxiv.org/abs/2212.07188
+- https://www.aoml.noaa.gov/argo/

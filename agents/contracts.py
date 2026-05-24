@@ -62,3 +62,4 @@ class OrchestratorResponse(BaseModel):
     plan: Optional[TaskPlan] = None
     step_results: list[StepResult] = []
     success: bool
+    confidence: Optional[float] = None

@@ -1,0 +1,61 @@
+Indian Ocean Climate
+
+The Indian Ocean plays a major role in the climate system, especially for countries around South Asia, East Africa, and Australia.
+
+Indian Ocean Dipole (IOD)
+The Indian Ocean Dipole is a climate pattern involving differences in sea surface temperature between the western and eastern Indian Ocean.
+
+Positive IOD:
+- Western Indian Ocean becomes warmer
+- Eastern Indian Ocean near Indonesia becomes cooler
+- Can increase rainfall over East Africa and parts of India
+
+Negative IOD:
+- Eastern Indian Ocean becomes warmer
+- Western Indian Ocean becomes cooler
+- Can weaken monsoon rainfall in some regions
+
+Relationship to the Monsoon
+Indian Ocean temperatures strongly affect the South Asian monsoon. Warm sea surface temperatures increase evaporation and atmospheric moisture, which can strengthen rainfall.
+
+Changes in Indian Ocean circulation and heat distribution can alter:
+- Monsoon timing
+- Rainfall intensity
+- Cyclone formation
+- Extreme weather events
+
+Sea Surface Temperature Anomalies
+A sea surface temperature anomaly is the difference between observed temperature and the long-term average.
+
+Positive anomalies indicate unusually warm conditions. These anomalies can influence:
+- Atmospheric convection
+- Rainfall patterns
+- Tropical cyclone activity
+
+Climate Change Signals
+The Indian Ocean has warmed rapidly during recent decades. Scientists have observed:
+- Rising sea surface temperatures
+- Increasing ocean heat content
+- Marine heatwaves
+- Changes in stratification and oxygen levels
+
+Why the Indian Ocean Is Warming Rapidly
+Several factors contribute:
+- Global greenhouse gas warming
+- Heat transport from the Pacific through the Indonesian Throughflow
+- Semi-enclosed basin geometry that traps heat efficiently
+
+The Indian Ocean is often considered one of the fastest-warming ocean basins. This warming affects monsoon behavior, fisheries, coral reefs, and coastal populations.
+
+Importance
+Understanding Indian Ocean climate variability is important for:
+- Seasonal forecasting
+- Agriculture
+- Disaster management
+- Water resources
+- Climate adaptation planning
+
+Grounded Sources
+- https://services.incois.gov.in/iogoos/indoos/argofloats.jsp
+- https://www.aoml.noaa.gov/argo/
+- https://en.wikipedia.org/wiki/Arabian_Sea

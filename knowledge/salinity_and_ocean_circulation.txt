@@ -1,0 +1,54 @@
+Salinity and Ocean Circulation
+
+Salinity is the amount of dissolved salts in seawater. It is usually expressed in PSU (Practical Salinity Units). Average ocean salinity is about 35 PSU.
+
+Why Salinity Varies
+Salinity changes because of:
+- Evaporation
+- Precipitation
+- River runoff
+- Sea ice formation and melting
+- Ocean circulation
+
+High evaporation increases salinity because water leaves the ocean surface while salts remain behind. Heavy rainfall or river discharge lowers salinity by adding freshwater.
+
+Halocline
+A halocline is a layer where salinity changes rapidly with depth. It is similar to a thermocline, but based on salinity rather than temperature.
+
+Strong haloclines reduce vertical mixing because water density changes rapidly across the layer.
+
+Salinity and Density
+Salinity strongly affects seawater density:
+- Saltier water is denser
+- Fresher water is less dense
+
+Together with temperature, salinity controls ocean stratification and circulation.
+
+Thermohaline Circulation
+Global ocean circulation is partly driven by differences in temperature (“thermo”) and salinity (“haline”). Dense water sinks in some regions and helps drive deep ocean circulation across the world ocean.
+
+This circulation redistributes:
+- Heat
+- Carbon
+- Nutrients
+- Dissolved gases
+
+Arabian Sea vs Bay of Bengal
+The Arabian Sea is generally more saline because:
+- Evaporation is high
+- Rainfall is lower
+- River discharge is limited
+
+The Bay of Bengal has lower salinity because:
+- Major rivers such as the Ganga and Brahmaputra deliver large freshwater input
+- Rainfall is intense during the monsoon
+
+These salinity differences strongly influence:
+- Surface stratification
+- Mixed layer depth
+- Cyclone intensity
+- Monsoon-related ocean dynamics
+
+Grounded Sources
+- https://services.incois.gov.in/iogoos/indoos/argofloats.jsp
+- https://arxiv.org/abs/2406.10571

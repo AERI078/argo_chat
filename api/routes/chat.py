@@ -1,10 +1,8 @@
 # api/routes/chat.py — POST /chat
-# receives a user message, runs the orchestrator, returns answer + chart + trace
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
-import api.main as state
 
 router = APIRouter()
 
@@ -21,11 +19,14 @@ class ChatResponse(BaseModel):
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
-    if not state.orchestrator:
-        raise HTTPException(status_code=503, detail="Orchestrator not ready yet.")
+async def chat(request: Request, body: ChatRequest):
+    if not request.app.state.ready:
+        raise HTTPException(
+            status_code=503,
+            detail="System is still initialising — FAISS index is being built. Try again in 60 seconds."
+        )
 
-    response, trace = state.orchestrator.run(request.message)
+    response, trace = request.app.state.orchestrator.run(body.message)
 
     return ChatResponse(
         answer=response.answer,

@@ -1,15 +1,16 @@
 # api/routes/health.py — GET /health
-# used by Render to confirm the service is up, and by the frontend to check connectivity
+# Render uses this to check if the service is up.
+# Returns 200 immediately even during init — port is bound, service is alive.
+# Frontend checks orchestrator_ready to know if chat is available yet.
 
-from fastapi import APIRouter
-import api.main as state
+from fastapi import APIRouter, Request
 
 router = APIRouter()
 
 
 @router.get("/health")
-async def health():
+async def health(request: Request):
     return {
         "status": "ok",
-        "orchestrator_ready": state.orchestrator is not None
+        "orchestrator_ready": request.app.state.ready
     }

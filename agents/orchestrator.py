@@ -43,7 +43,7 @@ class Orchestrator:
             context = "\n".join(context_parts) if context_parts else "No prior context."
 
             log.start("executor", step_id=step.step_id, tool=step.tool)
-            result = self.executor.execute(step, context)
+            result = self.executor.execute(step, context, query)
             all_results.append(result)
 
             if result.success:

@@ -80,10 +80,13 @@ class RAGPipeline:
 
     def retrieve(self, query: str, k: int = TOP_K) -> RAGResult:
         """
-        Retrieves from both indexes.
+        Retrieves from both indexes using dynamic k.
+        The retriever determines fetch_k internally based on query complexity,
+        then re-ranks and returns the top k results.
         Float docs: real measurement summaries for data grounding.
         Knowledge docs: oceanographic context for insight and explanation.
         """
-        float_docs = self.retriever.retrieve(query, k=k)
-        knowledge_docs = self.knowledge.retrieve(query, k=3)
+        float_docs     = self.retriever.retrieve(query, k=k)
+        # knowledge index uses k=4 so conceptual questions get more context
+        knowledge_docs = self.knowledge.retrieve(query, k=4)
         return RAGResult(query=query, docs=float_docs, knowledge_docs=knowledge_docs)

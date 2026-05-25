@@ -16,10 +16,16 @@ class PlannerAgent:
         # avoids redundant LLM calls for repeated or identical queries
         self._plan_cache: dict[str, TaskPlan] = {}
 
-    def plan(self, query: str) -> TaskPlan:
+    def plan(self, query: str, bypass_cache: bool = False) -> TaskPlan:
+        """
+        Decomposes query into a TaskPlan.
+
+        bypass_cache=True is used by ReplanEngine so a failed plan is never
+        returned from cache — we always ask the LLM for a fresh plan.
+        """
         cache_key = hashlib.md5(query.strip().lower().encode()).hexdigest()
 
-        if cache_key in self._plan_cache:
+        if not bypass_cache and cache_key in self._plan_cache:
             print(f"[Planner] Cache hit for: {query[:60]}")
             return self._plan_cache[cache_key]
 
@@ -34,7 +40,7 @@ class PlannerAgent:
         except json.JSONDecodeError:
             # fallback: minimal plan that at least gets context and answers
             plan = self._fallback_plan(query)
-            self._plan_cache[cache_key] = plan
+            # don't cache fallbacks — they're a last resort, not the right answer
             return plan
 
         steps = [TaskStep(**s) for s in data.get("steps", [])][:MAX_PLAN_STEPS]

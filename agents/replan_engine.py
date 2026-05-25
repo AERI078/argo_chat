@@ -20,16 +20,17 @@ class ReplanEngine:
 
         self.attempts += 1
 
-        # if we've already replanned too many times, fall back to fresh plan
+        # if we've already replanned too many times, fall back to a fresh plan
+        # bypass_cache=True ensures we never get the same broken plan back
         if self.attempts > MAX_REPLAN_ATTEMPTS:
-            return self.planner.plan(query)
+            return self.planner.plan(query, bypass_cache=True)
 
         failed_step = next(
             (s for s in original_plan.steps if s.step_id == failed_validation.step_id),
             None
         )
         if not failed_step:
-            return self.planner.plan(query)
+            return self.planner.plan(query, bypass_cache=True)
 
         messages = replan_prompt(
             query=query,
@@ -48,5 +49,6 @@ class ReplanEngine:
                 strategy_rationale=f"[Replanned] {data.get('strategy_rationale', '')}"
             )
         except (json.JSONDecodeError, Exception):
-            # if replan LLM output is broken, fall back to fresh plan from planner
-            return self.planner.plan(query)
+            # if replan LLM output is broken, fall back to a fresh plan
+            # bypass_cache=True so we don't loop back to the cached broken plan
+            return self.planner.plan(query, bypass_cache=True)

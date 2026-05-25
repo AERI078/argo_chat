@@ -121,9 +121,15 @@ class KnowledgePipeline:
         )
         return store
 
-    def retrieve(self, query: str, k: int = 3) -> list[str]:
-        """Returns top-k relevant knowledge chunks for a query."""
+    def retrieve(self, query: str, k: int = 4) -> list[str]:
+        """
+        Returns top-k relevant knowledge chunks for a query.
+        Over-fetches by 2x then re-ranks by blended semantic + keyword score
+        so the best chunks surface regardless of pure vector distance.
+        """
         if self.vector_store.is_empty:
             return []
+        from rag.retriever import _rerank
         query_vec = self.embedder.embed_one(query)
-        return self.vector_store.search(query_vec, k=k)
+        raw_docs = self.vector_store.search(query_vec, k=min(k * 2, 10))
+        return _rerank(raw_docs, query, top_n=k)

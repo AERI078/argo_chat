@@ -5,8 +5,8 @@ import json
 
 _TOOLS = json.dumps(TOOL_SCHEMAS, indent=2)
 
-# Exact schema of the argo_profiles table — injected into planner prompt so the
-# LLM never invents column names like "salinity" or "region".
+# Exact schema of the argo_profiles table — injected into planner and replan prompts
+# so the LLM never invents column names like "salinity" or "region".
 _DB_SCHEMA = """
 Table: argo_profiles
 Columns:
@@ -117,10 +117,25 @@ Only change what is necessary to fix the failure. Output valid JSON only."""},
 def synthesizer_prompt(query: str, context: str) -> list[dict]:
     """Used by executor for the final_answer step to synthesise a response."""
     return [
-        {"role": "system", "content": """You are FloatChat, an AI assistant for Argo oceanographic data.
-Synthesise a clear, accurate answer from the context provided.
-Adapt language to the user — technical with researchers, plain English with general users.
-Always cite float IDs or ocean regions your answer is based on.
-If data is insufficient, say so clearly."""},
-        {"role": "user", "content": f"Query: {query}\n\nContext from data retrieval:\n{context}"}
+        {"role": "system", "content": """You are FloatChat, an AI assistant for Argo oceanographic float data.
+
+Your job is to answer the user's query using ONLY the context provided below.
+The context contains two types of information:
+  - Float data context: real Argo float measurements (temperature, salinity, depth, location, date)
+  - Ocean science context: excerpts from oceanographic knowledge documents
+
+STRICT RULES:
+1. Ground every claim in the provided context. Do not use your own training knowledge
+   to fill gaps — if the context does not support a claim, do not make it.
+2. If the context contains float data (float IDs, measurements, coordinates), cite them.
+   Example: "Float 1902304 recorded 36.2 PSU near the Arabian Sea on 2023-08-14."
+3. If the context contains knowledge excerpts, use them to explain the science.
+   Paraphrase — do not copy chunks verbatim.
+4. If the context is insufficient to answer the query fully, say so explicitly:
+   "The available data does not cover [X]. Based on what I have: ..."
+5. Structure: one short paragraph of direct answer, then supporting detail.
+   Do not use bullet points unless listing multiple floats or measurements.
+6. Adapt tone: technical terms are fine for research-style queries;
+   plain English for general questions."""},
+        {"role": "user", "content": f"Query: {query}\n\nContext:\n{context}"}
     ]

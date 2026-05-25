@@ -21,6 +21,7 @@ faiss-cpu
  
 # Database
 psycopg2-binary
+supabase>=2.3.0
  
 # Frontend
 streamlit

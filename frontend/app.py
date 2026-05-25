@@ -4,11 +4,11 @@ import streamlit as st
 import httpx
 import plotly.graph_objects as go
 import os
-import time
+import threading
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
-st.set_page_config(page_title="FloatChat", page_icon="🌊", layout="wide")
+st.set_page_config(page_title="ArgoChat", page_icon="🌊", layout="wide")
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -23,21 +23,61 @@ def get_backend_status() -> dict:
 
 def send_message(message: str) -> dict:
     try:
-        r = httpx.post(
-            f"{BACKEND_URL}/chat",
-            json={"message": message},
-            timeout=120
-        )
+        r = httpx.post(f"{BACKEND_URL}/chat", json={"message": message}, timeout=120)
         if r.status_code == 503:
             return {
-                "answer": "⏳ The system is still initialising (building the ocean data index). Please wait 60 seconds and try again.",
+                "answer": "⏳ The system is still initialising. Please wait 60 seconds and try again.",
                 "success": False
             }
         return r.json()
     except httpx.TimeoutException:
-        return {"answer": "Request timed out. Try a more specific query with a smaller region.", "success": False}
+        return {"answer": "Request timed out. Try a more specific query.", "success": False}
     except Exception as e:
         return {"answer": f"Could not reach backend: {e}", "success": False}
+
+
+def send_message_with_status(message: str) -> dict:
+    """
+    Runs send_message in a background thread while showing rotating
+    stage indicators so the user sees progress instead of a frozen spinner.
+    """
+    stages = [
+        "🗺️ Planning query approach...",
+        "🔍 Searching float summaries...",
+        "🌊 Retrieving ocean context...",
+        "🧠 Synthesising answer...",
+    ]
+
+    status_placeholder = st.empty()
+    result_container = {}
+    done_flag = threading.Event()
+
+    def fetch():
+        result_container["result"] = send_message(message)
+        done_flag.set()
+
+    thread = threading.Thread(target=fetch, daemon=True)
+    thread.start()
+
+    i = 0
+    while not done_flag.is_set():
+        status_placeholder.info(stages[i % len(stages)])
+        done_flag.wait(timeout=4)
+        i += 1
+
+    status_placeholder.empty()
+    return result_container.get("result", {"answer": "No response received.", "success": False})
+
+
+def render_confidence(confidence: float):
+    """Color-coded confidence badge based on average validation score."""
+    if confidence >= 0.7:
+        st.success(f"🎯 High confidence: {confidence:.0%}", icon="✅")
+    elif confidence >= 0.5:
+        st.info(f"📊 Medium confidence: {confidence:.0%}", icon="ℹ️")
+    else:
+        st.warning(f"⚠️ Low confidence: {confidence:.0%}", icon="⚠️")
+        st.caption("Some steps had difficulty. Results may be incomplete.")
 
 
 def render_chart(chart_spec: dict):
@@ -125,21 +165,26 @@ def render_trace(trace: dict):
                 detail = f" — {event.get('reason', '')}"
             st.markdown(f"{icon} **{stage}**{detail}{elapsed}")
 
-def render_confidence(confidence: float):
-    """Display confidence score with color-coded badge."""
-    if confidence >= 0.8:
-        st.success(f"🎯 High confidence: {confidence:.0%}", icon="✅")
-    elif confidence >= 0.6:
-        st.info(f"📊 Medium confidence: {confidence:.0%}", icon="ℹ️")  
-    else:
-        st.warning(f"⚠️ Low confidence: {confidence:.0%}", icon="⚠️")
-        st.caption("The system had difficulty validating some steps. Results may be incomplete.")
+
+def _render_assistant_message(result: dict):
+    """
+    Renders answer, confidence, chart, and trace for one assistant response.
+    Handles both live results (key: 'answer') and session-stored messages (key: 'content').
+    """
+    answer = result.get("answer") or result.get("content", "")
+    st.markdown(answer)
+    if result.get("confidence") is not None:
+        render_confidence(result["confidence"])
+    if result.get("chart_spec"):
+        render_chart(result["chart_spec"])
+    if result.get("trace"):
+        render_trace(result["trace"])
 
 
 # ── sidebar ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.title("🌊 FloatChat")
+    st.title("🌊 ArgoChat")
     st.caption("AI-powered Argo ocean data explorer")
     st.divider()
 
@@ -148,7 +193,7 @@ with st.sidebar:
         st.success("Ready", icon="🟢")
     elif status.get("status") == "ok":
         st.warning("Initialising — building ocean data index...", icon="🟡")
-        st.caption("This takes ~60 seconds on first start. Refresh in a moment.")
+        st.caption("This takes ~60 seconds on first start.")
     else:
         st.error("Backend offline", icon="🔴")
         st.caption(f"Expecting backend at {BACKEND_URL}")
@@ -156,7 +201,8 @@ with st.sidebar:
     st.divider()
     st.markdown("**Try these queries**")
     examples = [
-        "What is salinity and why does it matter?",
+        "What is a thermocline and why does it matter?",
+        "Why is the Arabian Sea saltier than the Bay of Bengal?",
         "What's happening in the Arabian Sea?",
         "Show temperature profiles near lat 15, lon 65 in June 2023",
         "What are Argo floats and how do they work?",
@@ -173,7 +219,7 @@ with st.sidebar:
 
 # ── main ──────────────────────────────────────────────────────────────────────
 
-st.title("FloatChat 🌊")
+st.title("ArgoChat 🌊")
 st.caption("Ask anything about Argo ocean float data — in plain English or technical terms.")
 
 if "messages" not in st.session_state:
@@ -181,60 +227,45 @@ if "messages" not in st.session_state:
 if "pending_query" not in st.session_state:
     st.session_state.pending_query = None
 
-# render history
+# render full chat history — always runs on every Streamlit rerender
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-        if msg.get("confidence") is not None:
-            render_confidence(msg["confidence"])
-        if msg.get("chart_spec"):
-            render_chart(msg["chart_spec"])
-        if msg.get("trace"):
-            render_trace(msg["trace"])
+        if msg["role"] == "assistant":
+            _render_assistant_message(msg)
+        else:
+            st.markdown(msg["content"])
 
-# handle sidebar button clicks
+
+def _process_and_display(query: str):
+    """
+    Shared logic for both sidebar button clicks and typed input.
+    Appends user message, fetches response, renders it, appends assistant message.
+    Storing all fields in session state ensures re-renders show full history.
+    """
+    st.session_state.messages.append({"role": "user", "content": query})
+    with st.chat_message("user"):
+        st.markdown(query)
+
+    with st.chat_message("assistant"):
+        result = send_message_with_status(query)
+        _render_assistant_message(result)
+
+    # store ALL fields so _render_assistant_message works correctly on re-render
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": result.get("answer", ""),   # stored as "content" for history
+        "chart_spec": result.get("chart_spec"),
+        "trace": result.get("trace"),
+        "confidence": result.get("confidence"),
+    })
+
+
+# sidebar example button click
 if st.session_state.pending_query:
     query = st.session_state.pending_query
     st.session_state.pending_query = None
-    st.session_state.messages.append({"role": "user", "content": query})
-    with st.chat_message("user"):
-        st.markdown(query)
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            result = send_message(query)
-        st.markdown(result.get("answer", ""))
-        if result.get("confidence") is not None:
-            render_confidence(result["confidence"])
-        if result.get("chart_spec"):
-            render_chart(result["chart_spec"])
-        if result.get("trace"):
-            render_trace(result["trace"])
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": result.get("answer", ""),
-        "chart_spec": result.get("chart_spec"),
-        "trace": result.get("trace"),
-        "confidence": result.get("confidence")
-    })
-    st.rerun()
+    _process_and_display(query)
 
-# handle typed input
+# typed chat input
 if query := st.chat_input("Ask about ocean data..."):
-    st.session_state.messages.append({"role": "user", "content": query})
-    with st.chat_message("user"):
-        st.markdown(query)
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            result = send_message(query)
-        st.markdown(result.get("answer", ""))
-        if result.get("chart_spec"):
-            render_chart(result["chart_spec"])
-        if result.get("trace"):
-            render_trace(result["trace"])
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": result.get("answer", ""),
-        "chart_spec": result.get("chart_spec"),
-        "trace": result.get("trace"),
-        "confidence": result.get("confidence")
-    })
+    _process_and_display(query)

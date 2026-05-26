@@ -1,350 +1,388 @@
-# 🌊 ArgoChat — Talk to the Ocean
+# ArgoChat
 
-> *Ask questions about the world's oceans in plain English. Get answers backed by real scientific data.*
+A natural-language interface to the global Argo ocean float network. Ask questions about ocean temperature, salinity, and circulation in plain English. Get grounded, transparent answers backed by real float profiles and curated oceanographic knowledge.
 
-[![Live Demo](https://img.shields.io/badge/Live%20Demo-Streamlit-FF4B4B?style=for-the-badge&logo=streamlit)](https://your-app.streamlit.app)
-[![API](https://img.shields.io/badge/API-Render-46E3B7?style=for-the-badge&logo=render)](https://your-api.onrender.com/docs)
-[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python)](https://python.org)
+**Live:** [argochat.streamlit.app](https://argochat.streamlit.app) &nbsp;·&nbsp; **API:** [floatchat-api.onrender.com](https://floatchat-api.onrender.com/health)
 
 ---
 
-## What is ArgoChat?
+## What is Argo data?
 
-The world's oceans are monitored by **4,000+ autonomous Argo floats** drifting through every major ocean basin, measuring temperature, salinity, and pressure at hundreds of depths. This data is freely available — but locked behind complex file formats, specialist tools, and domain expertise that most people don't have.
+The Argo program is a global array of over 4,000 autonomous robotic floats drifting through the world's oceans. Every ten days, each float descends to 2,000 metres, rises slowly toward the surface while measuring temperature, salinity, and pressure at each depth, then transmits the profile via satellite. The program has operated continuously since 2000 and produces over 100,000 vertical profiles per year — the most complete picture of the ocean interior ever assembled.
 
-**ArgoChat breaks that barrier.**
-
-Type a question in plain English. Get a real answer, backed by real Argo float data from the Indian Ocean, with charts you can actually read.
-
-```
-"Show me salinity profiles near the equator in March 2023"
-"What is the temperature at 100m depth in the Arabian Sea?"
-"Compare BGC parameters over the last 6 months"
-"Which Argo floats are closest to the Malabar coast?"
-```
-
-No data science background needed. No SQL. No NetCDF. Just questions.
+This data is freely available through the Argo ERDDAP servers. The problem is that accessing it requires knowing which server to query, which Python library to use, how to interpret dbar as a depth proxy, and what PSU actually means. ArgoChat removes that barrier.
 
 ---
 
-## Who is this for?
+## The Problem
 
-| User | How they use ArgoChat |
-|------|------------------------|
-| **Oceanographic researchers** | Fast natural language querying instead of writing fetch scripts |
-| **Climate policy analysts** | Accessible ocean summaries without needing domain tools |
-| **Students & educators** | Explore real scientific data as part of coursework |
-| **Science journalists** | Query ocean conditions for reporting without a data team |
-| **General public** | Understand what's happening in the world's oceans, plainly |
+Ocean data has a last-mile problem. The data is global, free, and scientifically invaluable — relevant to climate modelling, fisheries management, shipping logistics, academic research, and environmental journalism. But it is effectively locked behind a tooling wall that filters out everyone except specialists.
+
+This is a distribution problem, not a data problem. And distribution problems are exactly what language models are well-positioned to solve — provided they are built with grounding constraints that prevent the model from filling data gaps with invention.
 
 ---
 
-## This is a live, deployed product
+## Architecture
 
-ArgoChat is not a prototype or a notebook demo. It is a fully deployed, end-to-end AI system:
+ArgoChat is a multi-agent RAG system. The core insight is that a single LLM call — retrieve context, answer question — is insufficient for scientific data. The system needs to plan, execute, validate, and recover from failure before it synthesises an answer.
 
-- **Backend** — FastAPI multi-agent system running on Render (Docker container)
-- **Frontend** — Streamlit chat interface on Streamlit Cloud
-- **Data** — Live Argo float data fetched on demand via argopy from the Ifremer ERDDAP server
-- **AI** — Llama 3.1 70B via Groq, with RAG over a FAISS vector index of float summaries
-- **Database** — PostgreSQL on Supabase caching fetched profiles for fast follow-up queries
+```
+User query
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  FastAPI  /chat                                                  │
+│  Checks app.state.ready (background init must complete first)   │
+└──────────────────────┬──────────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Orchestrator                                                    │
+│                                                                  │
+│   PlannerAgent ──► TaskPlan (ordered steps + dependencies)      │
+│        │                                                         │
+│        ▼                                                         │
+│   for each step:                                                 │
+│        ExecutorAgent ──► runs tool ──► StepResult               │
+│        ValidatorAgent ──► scores result ──► ValidationResult    │
+│        PlanEvaluator ──► coherent / replan / unrecoverable      │
+│              │                                                   │
+│        replan? ──► ReplanEngine ──► revised TaskPlan            │
+│              │                                                   │
+│        final_answer step ──► SynthesiserPrompt ──► answer       │
+│                                                                  │
+│   Returns: OrchestratorResponse + full pipeline trace           │
+└─────────────────────────────────────────────────────────────────┘
+                       │
+                       ▼
+            Streamlit frontend renders:
+            answer · confidence score · chart · trace expander
+```
+
+### Agent Responsibilities
+
+**PlannerAgent**
+Receives the raw query and calls the LLM once with a structured system prompt containing the full tool schema and exact database column names. Returns a `TaskPlan` — an ordered list of `TaskStep` objects, each specifying a tool, parameters, and dependency IDs.
+
+Strategies applied:
+- In-memory plan cache keyed by md5(query) — identical queries skip the LLM entirely
+- `bypass_cache=True` flag used by ReplanEngine so a broken cached plan is never reused
+- Fallback plan (rag_search → final_answer) when LLM output is unparseable
+- Prompt constraint: conceptual or explanatory queries use only rag_search + final_answer — no live data fetch
+
+**ExecutorAgent**
+Runs exactly one step per call. For `final_answer` steps, calls the synthesiser prompt directly. For all other steps, calls the executor prompt, parses `Action: {...}` JSON from the LLM output using brace-balancing (not regex, which breaks on nested objects), and dispatches to the appropriate tool.
+
+**ValidatorAgent**
+Scores each step result. Short-circuits without LLM calls wherever possible:
+
+| Step type | Validation method | Score basis |
+|-----------|------------------|-------------|
+| `rag_search` | Rule-based | 0.85 if docs returned, 0.2 if empty |
+| `final_answer` | Rule-based | min(1.0, len(answer) / 400) |
+| `fetch_*` with zero rows | Rule-based | 0.1, failure_type = strategy |
+| `fetch_*` with data | LLM scoring | Semantic quality assessment |
+
+This eliminates approximately two LLM calls per typical query.
+
+**PlanEvaluator**
+Tracks cumulative failure counts by type after every step. Thresholds from config:
+
+```
+execution    → 3 failures triggers replan, 4+ triggers unrecoverable
+dependency   → 2 / 3
+strategy     → 1 / 2
+invalidation → 1 / 2
+```
+
+**ReplanEngine**
+When PlanEvaluator signals replan, builds a targeted repair prompt with the original plan, the failed step, and the failure reason. The LLM generates a revised plan working around the specific failure. After `MAX_REPLAN_ATTEMPTS`, falls back to a completely fresh plan via `planner.plan(query, bypass_cache=True)`.
 
 ---
 
-## System Architecture
+## RAG Pipeline
+
+Two separate FAISS indexes serve different retrieval purposes.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    User (Browser)                           │
-└─────────────────────┬───────────────────────────────────────┘
-                      │ types a question
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Streamlit Frontend (Streamlit Cloud)           │
-│   Chat UI · Plotly Charts · Agent Trace Viewer              │
-└─────────────────────┬───────────────────────────────────────┘
-                      │ POST /chat
-                      ▼
-┌─────────────────────────────────────────────────────────────┐
-│                FastAPI Backend (Render)                     │
-│                                                             │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │                    Orchestrator                      │   │
-│  │                                                      │   │
-│  │  ┌─────────────┐   produces    ┌──────────────────┐  │   │
-│  │  │PlannerAgent │──────────────▶│    Task Plan     │  │   │
-│  │  └─────────────┘               └────────┬─────────┘  │   │
-│  │                                         │ for each   │   │
-│  │                                         │ step       │   │
-│  │  ┌──────────────────────────────────────▼──────────┐ │   │
-│  │  │              ExecutorAgent                      │ │   │
-│  │  │  rag_search · fetch_region · db_query · chart   │ │   │
-│  │  └──────────────────────────────────────┬──────────┘ │   │
-│  │                                         │            │   │
-│  │  ┌──────────────────────────────────────▼──────────┐ │   │
-│  │  │             ValidatorAgent                      │ │   │
-│  │  │    scores result · classifies failure type      │ │   │
-│  │  └──────────────────────────────────────┬──────────┘ │   │
-│  │                                         │            │   │
-│  │  ┌──────────────────────────────────────▼──────────┐ │   │
-│  │  │             PlanEvaluator                       │ │   │
-│  │  │  coherent? → continue  replan? → ReplanEngine   │ │   │
-│  │  └─────────────────────────────────────────────────┘ │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                             │
-│  ┌──────────────┐  ┌─────────────────┐  ┌───────────────┐  │
-│  │  FAISS Index │  │ argopy / ERDDAP │  │   Supabase    │  │
-│  │  (semantic)  │  │  (live data)    │  │  (SQL cache)  │  │
-│  └──────────────┘  └─────────────────┘  └───────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+query
+  │
+  ├── Float index (WHAT)
+  │     Summaries of real Argo profiles: float ID, date, location,
+  │     avg temperature, avg salinity, max depth
+  │     Built from ERDDAP fetch on cold start, stored in Supabase Storage
+  │
+  └── Knowledge index (WHY)
+        Chunked text from curated oceanographic documents:
+        thermoclines, salinity gradients, monsoon dynamics,
+        mixed layer physics, Argo instrumentation
+        400-char chunks with 80-char overlap, prefixed by source filename
+
+Both indexes go through:
+  1. Dynamic k selection    — comparison queries k=8, data queries k=6, conceptual k=5
+  2. FAISS vector search    — FlatL2 exact search, no approximation
+  3. Re-ranking             — 60% semantic rank (FAISS position) + 40% keyword overlap
+
+RAGResult { docs: float summaries, knowledge_docs: science context }
 ```
 
-### How a query flows through the system
-
-1. User types a question in the Streamlit chat interface
-2. Frontend sends `POST /chat` to the FastAPI backend
-3. **PlannerAgent** decomposes the query into ordered steps (e.g. "search context → fetch region data → generate chart → answer")
-4. **ExecutorAgent** runs each step using the right tool:
-   - `rag_search` → FAISS semantic search over float summaries
-   - `fetch_region` / `fetch_float` → live Argo data via argopy
-   - `db_query` → SQL against cached profiles in Supabase
-   - `generate_chart` → Plotly chart spec for the frontend
-5. **ValidatorAgent** scores each result and classifies any failures
-6. **PlanEvaluator** checks if the plan is still valid after each step
-7. **ReplanEngine** generates a revised plan if needed
-8. Final answer + chart spec returned to frontend
-9. Streamlit renders the answer, chart, and a "How I answered this" trace panel
-
-### Why two databases?
-
-| | FAISS | PostgreSQL (Supabase) |
-|--|--|--|
-| **What it stores** | Embeddings of float profile summaries | Raw profile measurements |
-| **Query type** | Semantic — "what's in the Arabian Sea" | Structured — "lat 10-20, March 2023" |
-| **When it's used** | Every query (context retrieval) | After live data is fetched and cached |
-| **Built** | Once at startup, saved to disk | Incrementally as users query |
+The synthesiser is explicitly instructed to use only the retrieved context. If the context is insufficient, it says so — it does not fill gaps from training data.
 
 ---
 
-## Directory Structure
+## Data Pipeline
 
 ```
-ArgoChat/
-│
-├── config.py                     ← all constants and env vars
-├── pipeline_logger.py            ← structured pipeline event logger
-├── requirements.txt
-├── Dockerfile                    ← for Render deployment
-├── render.yaml                   ← Render service config
-├── .env.example                  ← template for secrets
-├── .streamlit/config.toml        ← Streamlit theme config
-│
-├── data_pipeline/
-│   ├── fetcher.py                ← argopy: fetch Argo profiles on demand
-│   └── db.py                     ← Supabase: setup, cache, query
-│
-├── rag/
-│   ├── embedder.py               ← sentence-transformers embedder
-│   ├── vector_store.py           ← FAISS index: build, save, load, search
-│   ├── summarizer.py             ← DataFrame rows → text summaries
-│   ├── retriever.py              ← query → top-k similar summaries
-│   └── pipeline.py               ← RAGPipeline: loads/builds index on init
-│
-├── agents/
-│   ├── contracts.py              ← Pydantic typed contracts for all handoffs
-│   ├── llm_caller.py             ← Groq API wrapper
-│   ├── parser.py                 ← extracts Action JSON from LLM output
-│   ├── prompt.py                 ← per-agent system prompts
-│   ├── tools.py                  ← tool functions + TOOL_SCHEMAS registry
-│   ├── planner.py                ← query → TaskPlan
-│   ├── executor.py               ← TaskStep → StepResult
-│   ├── validator.py              ← StepResult → ValidationResult
-│   ├── plan_evaluator.py         ← global plan health after each step
-│   ├── replan_engine.py          ← generates revised plan on failure
-│   ├── orchestrator.py           ← coordinates full multi-agent loop
-│   └── factory.py                ← build_orchestrator() composition root
-│
-├── api/
-│   ├── main.py                   ← FastAPI app + lifespan startup
-│   └── routes/
-│       ├── chat.py               ← POST /chat
-│       └── health.py             ← GET /health
-│
-├── frontend/
-│   └── app.py                    ← Streamlit chat UI
-│
-└── test_pipeline.py              ← 28 tests across 10 sections
+fetch_profiles_by_region(lat, lon, date_start, date_end)
+          │
+          ├── is_region_cached()? ──► YES ──► load_profiles_from_db() ──► return (fast)
+          │
+          └── NO ──► ERDDAP fetch via argopy (60s timeout)
+                          │
+                          ├── cache_profiles()        — permanent storage
+                          ├── log_fetched_region()    — marks region as cached
+                          └── return DataFrame
 ```
+
+Every fetch is written to Supabase PostgreSQL permanently. Repeat queries for the same region return in milliseconds. Over time the database becomes the primary data source and ERDDAP is called progressively less.
+
+Schema:
+
+```sql
+argo_profiles (
+    float_id      VARCHAR,
+    lat           FLOAT,
+    lon           FLOAT,
+    date          DATE,
+    pressure_dbar FLOAT,
+    temperature_c FLOAT,
+    salinity_psu  FLOAT,
+    UNIQUE (float_id, date, pressure_dbar)
+)
+
+fetched_regions (
+    lat_min, lat_max, lon_min, lon_max,
+    date_start, date_end,
+    row_count, fetched_at
+)
+```
+
+Indexes on lat, lon, date, float_id, and a composite (lat, lon, date) for region queries.
 
 ---
 
-## Setup & Running Locally
-
-### Prerequisites
-- Python 3.11+
-- A [Groq API key](https://console.groq.com) (free)
-- A [Supabase](https://supabase.com) project (free) — for the PostgreSQL cache
-
-### 1. Clone and install
-
-```bash
-git clone https://github.com/yourusername/ArgoChat
-cd ArgoChat
-python -m venv argoenv
-source argoenv/bin/activate  # Windows: argoenv\Scripts\activate
-pip install -r requirements.txt
-```
-
-### 2. Configure environment
-
-```bash
-cp .env.example .env
-```
-
-Fill in your `.env`:
+## Startup Sequence
 
 ```
-GROQ_API_KEY=gsk_...
-DATABASE_URL=postgresql://postgres.YOURREF:PASSWORD@aws-0-region.pooler.supabase.com:6543/postgres
-BACKEND_URL=http://localhost:8000
+Docker container starts on Render
+    │
+    ├── FastAPI binds port immediately
+    │   /health returns 200 — Render health check passes instantly
+    │
+    └── Background thread:
+            setup_tables()         — idempotent DDL + constraint migration
+            RAGPipeline.__init__()
+                try local disk     — miss on fresh container
+                try Supabase Storage download  — hit → 5-10 seconds
+                if miss: fetch ERDDAP + build + upload to Supabase
+            KnowledgePipeline.__init__()  — same pattern
+            wire agents
+            app.state.ready = True
+            /chat now accepts requests
 ```
 
-### 3. Run the backend
-
-```bash
-uvicorn api.main:app --reload
-```
-
-On first run, ArgoChat will:
-1. Download the embedding model (~90MB, cached after)
-2. Fetch a sample of Arabian Sea Argo profiles via argopy (~30-60s)
-3. Build and save the FAISS index to disk
-4. Print `Ready.` — startup complete
-
-Every subsequent restart loads the saved index in seconds.
-
-Visit `http://localhost:8000/docs` for the interactive API explorer.
-
-### 4. Run the frontend
-
-In a second terminal:
-
-```bash
-streamlit run frontend/app.py
-```
-
-Open `http://localhost:8501`
-
-### 5. Run tests
-
-```bash
-python test_pipeline.py           # summary output
-python test_pipeline.py --verbose # full tracebacks on failures
-```
+The Supabase Storage layer means every deploy after the first one skips the 90-second ERDDAP cold start. FAISS indexes survive container restarts.
 
 ---
 
-## Deploying to Production
+## Confidence Scoring
 
-### Backend → Render
+After all steps complete:
 
-1. Push your repo to GitHub
-2. Go to [render.com](https://render.com) → New → Web Service
-3. Connect your GitHub repo — Render detects the `Dockerfile` automatically
-4. Add environment variables in the Render dashboard:
-   - `GROQ_API_KEY`
-   - `DATABASE_URL`
-5. Click **Deploy**
-6. Copy your service URL (e.g. `https://ArgoChat-api.onrender.com`)
+```python
+confidence = (final_answer_score * 0.5) + (avg_other_steps * 0.5)
+```
 
-> **Note:** Free tier services sleep after 15 minutes of inactivity. First request after sleep takes ~30s to wake up.
-
-### Frontend → Streamlit Cloud
-
-1. Go to [share.streamlit.io](https://share.streamlit.io)
-2. Connect your GitHub repo
-3. Set **Main file path** to `frontend/app.py`
-4. Under **Secrets**, add:
-   ```
-   BACKEND_URL = "https://ArgoChat-api.onrender.com"
-   ```
-5. Click **Deploy**
+The final_answer score is weighted at 50% because it directly reflects synthesis quality. Intermediate step scores (retrieval quality, fetch success) contribute the other 50%. Displayed to the user as high / medium / low with a percentage.
 
 ---
 
-## Example Queries
+## Tools
 
-**For general users:**
-- *"What is an Argo float and what does it measure?"*
-- *"Is the Arabian Sea getting warmer?"*
-- *"Show me where ocean floats are in the Indian Ocean"*
+| Tool | Purpose | DB interaction |
+|------|---------|----------------|
+| `rag_search` | Semantic search over float summaries and knowledge docs | Read FAISS |
+| `fetch_region` | Live Argo profiles for a lat/lon/date range from ERDDAP | Write + log |
+| `fetch_float` | Full history for a specific float ID | Write + log |
+| `db_query` | SELECT against cached profiles in Postgres | Read only |
+| `generate_chart` | Converts rows into depth_profile / trajectory / time_series Plotly spec | None |
+| `final_answer` | Synthesises all accumulated context into a grounded answer | None |
 
-**For researchers:**
-- *"Show salinity profiles near lat 15, lon 65 between June and December 2023"*
-- *"Compare temperature at 100 dbar across different float IDs"*
-- *"Fetch BGC data for the Bay of Bengal in Q1 2023 and plot a time series"*
+---
+
+## Unit Economics
+
+**Cost to serve one query (current)**
+
+| Component | Cost per query |
+|-----------|---------------|
+| Groq API — Llama 3.3 70B, ~4-7 calls | ~$0.0006 |
+| ERDDAP fetch | $0 (free, cached after first call) |
+| Supabase DB + Storage | $0 (free tier) |
+| Render hosting | $0 (free tier) |
+| **Total marginal cost** | **< $0.001** |
+
+**What drives cost down over time**
+
+The DB-first fetch architecture means ERDDAP is called once per region per date window — ever. Every subsequent query for the same region costs only the LLM calls. The planner cache eliminates LLM calls for repeated identical queries. Validator short-circuits eliminate two LLM calls per query by scoring retrieval and synthesis steps with rule-based logic rather than asking the model.
+
+**At scale**
+
+| Scenario | Revenue/query | Cost/query | Gross margin |
+|----------|--------------|-----------|--------------|
+| $10/month · 500 queries | $0.020 | $0.001 | 95% |
+| $49/month · 2,000 queries | $0.025 | $0.001 | 96% |
+| API access · $0.05/query | $0.050 | $0.003 | 94% |
+
+Primary cost driver at scale is LLM inference. Switching planning and validation steps to a smaller model (Llama 3.1 8B) while keeping the large model only for synthesis reduces per-query LLM cost by approximately 60%.
+
+---
+
+## User Demographics
+
+**Primary — Academic researchers and graduate students**
+Oceanography, climate science, marine biology, and environmental science programs. Currently the only users who can access Argo data, but spend significant time on data engineering rather than analysis. ArgoChat eliminates that overhead.
+
+**Secondary — Climate and science journalists**
+Need to report on ocean temperature anomalies, salinity shifts, or heat content changes but lack the technical skills to query ERDDAP directly. A natural-language interface opens Argo to this entire professional class.
+
+**Tertiary — Policy analysts and NGOs**
+Ocean health is increasingly relevant to climate policy, fisheries regulation, and coastal management. Analysts who understand the domain but not the tooling benefit directly.
+
+**Emerging — Port logistics and maritime operators**
+Ocean temperature and salinity stratification affects shipping fuel consumption, route planning, and equipment maintenance. The data has commercial value that is currently untapped outside academic circles.
+
+**What unites all of them:** domain knowledge without tooling knowledge. The bottleneck is not interest in the data — it is the activation energy required to access it.
 
 ---
 
 ## Tech Stack
 
-| Component | Technology | Why |
-|-----------|-----------|-----|
-| LLM | Llama 3.1 70B via Groq | Free tier, fast LPU inference, strong SQL generation |
-| Embeddings | all-MiniLM-L6-v2 | Runs locally, zero cost, good semantic quality |
-| Vector store | FAISS (FlatL2) | Exact search, no external service, right-sized for dataset |
-| Relational DB | PostgreSQL via Supabase | Concurrent connections, free hosted tier, geospatial ready |
-| Backend | FastAPI + Uvicorn | Async I/O for concurrent LLM + DB calls |
-| Frontend | Streamlit | Chat UI built-in, Plotly native, fast to ship |
-| Data source | argopy → Argo ERDDAP | Official Argo data API, no auth required |
-| Agent framework | Manual ReAct loop | Full transparency, debuggable, no framework lock-in |
-| Deployment | Render (API) + Streamlit Cloud (UI) | Free tier, GitHub-native, zero DevOps |
-
----
-
-## Limitations
-
-**Data coverage** — The FAISS index is seeded with Arabian Sea data (2023). Queries about other regions trigger live fetches which can be slow (30-60s) on first request.
-
-**ERDDAP timeouts** — The Argo data server occasionally times out on large regional queries. The agent handles this as an execution failure and retries, but very broad queries (e.g. entire Indian Ocean over 2 years) may fail.
-
-**Cold starts** — Render's free tier sleeps after inactivity. First request after sleep rebuilds the connection, not the FAISS index (that's persisted to disk).
-
-**SQL generation accuracy** — Natural language to SQL translation works well for simple filters but can fail on complex multi-join queries. The validator catches these and triggers a replan.
-
-**Single-session memory** — The system has no cross-session memory. Each conversation starts fresh. Users cannot refer back to previous sessions.
-
-**English only** — Query understanding is English-only. The Argo data itself is global.
+| Layer | Technology |
+|-------|-----------|
+| LLM | Llama 3.3 70B via Groq API |
+| Orchestration | Custom multi-agent loop (Python) |
+| Vector search | FAISS FlatL2 (local) |
+| Embeddings | all-MiniLM-L6-v2 via fastembed |
+| Ocean data | Argo ERDDAP via argopy |
+| Database | Supabase PostgreSQL |
+| Index storage | Supabase Storage |
+| Backend | FastAPI + Uvicorn |
+| Frontend | Streamlit |
+| Deployment | Render (API) + Streamlit Cloud (UI) |
 
 ---
 
 ## Future Scope
 
-**LangSmith observability** — Wire in LangSmith tracing for production monitoring, latency dashboards, and prompt regression testing. The logger infrastructure is already in place.
+**Hybrid search**
+Combine FAISS semantic retrieval with structured PostgreSQL filters on lat, lon, date, and float_id. A query like "high-salinity profiles in the Arabian Sea during monsoon season 2023" should use both vector similarity and SQL range filters — neither alone is sufficient. This requires a query decomposition step that separates the semantic intent from the structured constraints.
 
-**Extended data coverage** — Ingest BGC (Bio-Geo-Chemical) float data, glider observations, and satellite SST layers. The RAG pipeline is format-agnostic and can ingest any tabular source.
+**Expanded regional coverage**
+The current FAISS index covers the Arabian Sea 2023 window. A systematic prefetch pipeline — running nightly across eight named ocean regions, storing results permanently — would give the system a continuously growing, globally representative knowledge base without any user-triggered ERDDAP calls.
 
-**LangGraph migration** — Replace the manual ReAct loop with LangGraph for durable checkpointing, interrupt/resume on long fetches, and visual workflow debugging.
+**Streaming responses**
+The current architecture waits for the full multi-agent loop to complete before returning. Streaming partial results — showing the plan, then each step result as it completes — would dramatically improve perceived responsiveness without changing any backend logic.
 
-**Fine-tuned SQL generator** — Fine-tune a small model (Qwen 2.5 3B via QLoRA) specifically on Argo schema SQL generation for higher accuracy and lower latency on structured queries.
+**Biogeochemical variables**
+Argo BGC floats measure oxygen, nitrate, pH, and chlorophyll in addition to the core T/S/P variables. Extending the data pipeline to ingest BGC profiles opens the system to questions about ocean productivity, carbon cycling, and deoxygenation — domains with significant research and policy relevance.
 
-**Hybrid retrieval** — Add BM25 sparse retrieval alongside FAISS dense retrieval (Reciprocal Rank Fusion) for better handling of float IDs, dates, and exact region names.
+**User memory and session continuity**
+Currently each query is stateless. A session layer that retains retrieved context across turns — so "now show me the same region in winter" is unambiguous — would make the system significantly more useful for iterative analysis workflows.
 
-**Voice interface** — Add Whisper STT and ElevenLabs TTS for voice-driven ocean data queries — particularly useful for field researchers.
+**Confidence calibration**
+The current confidence score is rule-based and untested against ground truth. A calibration dataset — queries with known correct answers — would allow the scoring thresholds to be tuned empirically. This is the difference between a confidence score that is decorative and one that is genuinely informative.
 
-**Multi-ocean extension** — Extend beyond the Indian Ocean to global Argo coverage, with region-aware FAISS sharding for scalable semantic search.
-
-**HITL gates** — Add human-in-the-loop confirmation for queries that would fetch very large datasets (>10,000 profiles) before executing.
-
----
-
-## Acknowledgements
-
-- **Argo Program** — the international array of profiling floats that makes this data possible ([argo.ucsd.edu](https://argo.ucsd.edu))
-- **INCOIS** — Indian National Centre for Ocean Information Services, the Indian Argo data centre
-- **argopy** — the open-source Python library for Argo data access ([argopy.readthedocs.io](https://argopy.readthedocs.io))
-- **Problem Statement 25040** — ArgoChat concept from Smart India Hackathon 2025, Ministry of Earth Sciences
+**Dashboard and historical analysis**
+A pre-computed statistics layer aggregating float counts, temperature trends, and salinity anomalies by region and season — updated automatically as new data is fetched — would give non-technical users a visual entry point before they engage with the chat interface.
 
 ---
 
-*Built as a capstone project demonstrating production-grade multi-agent AI systems with RAG, structured data retrieval, and live deployment.*
+## Local Setup
+
+```bash
+# clone and install
+git clone https://github.com/yourname/argochat
+cd argochat
+pip install -r requirements.txt
+
+# environment variables
+cp .env.example .env
+# fill in: GROQ_API_KEY, DATABASE_URL, SUPABASE_URL, SUPABASE_KEY
+
+# start backend
+uvicorn api.main:app --host 0.0.0.0 --port 8000
+
+# start frontend (separate terminal)
+BACKEND_URL=http://localhost:8000 streamlit run frontend/app.py
+```
+
+First startup downloads FAISS indexes from Supabase Storage (~10 seconds). If the bucket is empty it fetches from ERDDAP and builds the index (~90 seconds).
+
+---
+
+## Project Structure
+
+```
+argochat/
+├── api/
+│   ├── main.py                  FastAPI app, background init, CORS
+│   └── routes/
+│       ├── chat.py              POST /chat
+│       └── health.py            GET /health
+├── agents/
+│   ├── orchestrator.py          Main multi-agent loop
+│   ├── planner.py               Query → TaskPlan
+│   ├── executor.py              TaskStep → StepResult
+│   ├── validator.py             StepResult → ValidationResult
+│   ├── plan_evaluator.py        Cumulative failure tracking
+│   ├── replan_engine.py         Failure → revised TaskPlan
+│   ├── contracts.py             Pydantic data models
+│   ├── tools.py                 Tool implementations + schemas
+│   ├── prompt.py                All LLM prompts
+│   ├── llm_caller.py            Groq API wrapper
+│   ├── parser.py                Action JSON extraction
+│   └── logger.py                Structured pipeline logger
+├── rag/
+│   ├── pipeline.py              Dual-index RAG orchestration
+│   ├── retriever.py             Dynamic k + re-ranking
+│   ├── knowledge_pipeline.py    Knowledge document index
+│   ├── vector_store.py          FAISS + Supabase Storage I/O
+│   ├── embedder.py              fastembed wrapper
+│   └── summarizer.py            DataFrame → float profile summaries
+├── data_pipeline/
+│   ├── fetcher.py               DB-first fetch with ERDDAP fallback
+│   └── db.py                    Supabase PostgreSQL operations
+├── knowledge/                   Curated oceanographic .txt files
+├── frontend/
+│   └── app.py                   Streamlit split-panel UI
+├── config.py                    All constants and env vars
+├── Dockerfile
+└── render.yaml
+```
+
+---
+
+## Limitations
+
+**ERDDAP reliability.** The Argo ERDDAP server is a public research service, not a commercial API. It has rate limits, occasional downtime, and variable response times. Queries for large regions or long date ranges reliably timeout at 60 seconds. The DB-first architecture mitigates this over time but does not eliminate it.
+
+**Index staleness.** The FAISS float summaries index is built from a fixed historical window. It does not update automatically as new Argo profiles are collected. A scheduled rebuild pipeline is needed for production use.
+
+**Single-region knowledge base.** The current knowledge documents focus on the Indian Ocean and general Argo methodology. Questions about Pacific or Atlantic dynamics may receive less grounded answers.
+
+**No authentication.** The current deployment has no user authentication or rate limiting. This is appropriate for a research prototype but not for a production system.
+
+---
+
+*Built as a capstone project for a Generative AI course. The goal was not to build a chatbot but to demonstrate that scientific datasets with real retrieval and grounding constraints are a better benchmark for AI system design than general-purpose assistants.*

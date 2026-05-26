@@ -175,10 +175,10 @@ def _render_assistant_message(result: dict):
     # st.markdown(answer)
     # if result.get("confidence") is not None:
     #     render_confidence(result["confidence"])
-    # if result.get("chart_spec"):
-    #     render_chart(result["chart_spec"])
-    # if result.get("trace"):
-    #     render_trace(result["trace"])
+    if result.get("chart_spec"):
+        render_chart(result["chart_spec"])
+    if result.get("trace"):
+        render_trace(result["trace"])
 
 
 # ── sidebar ───────────────────────────────────────────────────────────────────

@@ -69,15 +69,15 @@ def send_message_with_status(message: str) -> dict:
     return result_container.get("result", {"answer": "No response received.", "success": False})
 
 
-def render_confidence(confidence: float):
-    """Color-coded confidence badge based on average validation score."""
-    if confidence >= 0.7:
-        st.success(f"🎯 High confidence: {confidence:.0%}", icon="✅")
-    elif confidence >= 0.5:
-        st.info(f"📊 Medium confidence: {confidence:.0%}", icon="ℹ️")
-    else:
-        st.warning(f"⚠️ Low confidence: {confidence:.0%}", icon="⚠️")
-        st.caption("Some steps had difficulty. Results may be incomplete.")
+# def render_confidence(confidence: float):
+#     """Color-coded confidence badge based on average validation score."""
+#     if confidence >= 0.7:
+#         st.success(f"🎯 High confidence: {confidence:.0%}", icon="✅")
+#     elif confidence >= 0.5:
+#         st.info(f"📊 Medium confidence: {confidence:.0%}", icon="ℹ️")
+#     else:
+#         st.warning(f"⚠️ Low confidence: {confidence:.0%}", icon="⚠️")
+#         st.caption("Some steps had difficulty. Results may be incomplete.")
 
 
 def render_chart(chart_spec: dict):
@@ -172,13 +172,13 @@ def _render_assistant_message(result: dict):
     Handles both live results (key: 'answer') and session-stored messages (key: 'content').
     """
     answer = result.get("answer") or result.get("content", "")
-    st.markdown(answer)
-    if result.get("confidence") is not None:
-        render_confidence(result["confidence"])
-    if result.get("chart_spec"):
-        render_chart(result["chart_spec"])
-    if result.get("trace"):
-        render_trace(result["trace"])
+    # st.markdown(answer)
+    # if result.get("confidence") is not None:
+    #     render_confidence(result["confidence"])
+    # if result.get("chart_spec"):
+    #     render_chart(result["chart_spec"])
+    # if result.get("trace"):
+    #     render_trace(result["trace"])
 
 
 # ── sidebar ───────────────────────────────────────────────────────────────────
@@ -256,7 +256,7 @@ def _process_and_display(query: str):
         "content": result.get("answer", ""),   # stored as "content" for history
         "chart_spec": result.get("chart_spec"),
         "trace": result.get("trace"),
-        "confidence": result.get("confidence"),
+        # "confidence": result.get("confidence"),
     })
 
 
